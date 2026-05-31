@@ -20,11 +20,23 @@ async def tcp_scan(target_ip, target_port, semaphore):
 
 async def main():
     target_ip = input("\nWhat is your target's ip ?\n")
-    target_port = int(input("\nWhat port you want to check?\n"))
+    print("Enter each port which you want to check one by one and then type end") #One of the ways using making list with ports which we need ,i won't use this type in big projects but it suits well this one
+    target_ports = []
+    while (True):
+        n = input("\nPort or end\n")
+        if n.lower() == "end":
+            break
+        else:
+            target_ports.append(int(n))
+    
+
+    
     semaphore = asyncio.Semaphore(MAX_CONCURRENT) #We are putting variable which is higher here so it can control our threads
-    await tcp_scan(target_ip, target_port, semaphore) #And here we go launching our scan with all parametres
+     #And here we go launching our scan with all parametres
+    tasks = [tcp_scan(target_ip, port, semaphore) for port in target_ports] 
+    await asyncio.gather(*tasks)
 
-
+    
 asyncio.run(main())
 
 
