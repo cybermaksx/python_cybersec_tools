@@ -10,9 +10,15 @@ MAX_CONCURRENT = 100 #For syn we are using less than tcp_scan
 
 
 def calculate_checksum(data):
-    pass
-
-
+    if len(data) % 2 != 0:
+        data += b'\x00'
+    s = 0
+    for i in range(0, len(data), 2):
+        word = (data[i] << 8) + data[i + 1]
+        s += word
+    s = (s >> 16) + (s & 0xFFFF)
+    s += (s >> 16)
+    return ~s & 0xFFFF
 
 
 
