@@ -1,5 +1,6 @@
 import requests
 import os
+import sys
 
 target_url = input("What is your target's IP?\n")
 
@@ -21,12 +22,16 @@ print(f"Port: {target_port}")
 target = f"{target_url}:{target_port}"
 
 def directory_bruteforce(target):
-    pass
+    with open("common.txt","r") as f:
+        directories = [line.strip() for line in f if line.strip()]
+
+    print(directories)
 
 
 
 
 
+directory_bruteforce(target)
 
 
 
