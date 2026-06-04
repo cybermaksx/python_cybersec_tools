@@ -1,3 +1,4 @@
+files
 .bash_history
 .bashrc
 .cache

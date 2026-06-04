@@ -2,10 +2,11 @@ import requests
 import os
 import sys
 
-target_url = input("What is your target's IP?\n")
+target_url = input("What is your target's url?\n")
+if not target_url.startswith(("http://", "https://")): 
+    target_url = f"http://{target_url}"
 
 target_port_input = input("Any specific port or press Enter for default (80):\n")
-
 
 if target_port_input.strip() == "":
     target_port = 80
@@ -22,15 +23,30 @@ print(f"Port: {target_port}")
 target = f"{target_url}:{target_port}"
 
 def directory_bruteforce(target):
-    with open("common.txt","r") as f:
-        directories = [line.strip() for line in f if line.strip()]
+    try:
+        with open("common.txt","r") as f:
+            directories = [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        print("You don't have common.txt\nThat's very sad")
+        sys.exit(1)
+    
+    print(f"Loaded {len(directories)} directories")
+    print(directories[:5])
 
-    print(directories)
+
+    for directory in directories:
+        try:
+            response = requests.get(f"{target}/{directory}")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Mistake with {directory}")
+            continue
 
 
-
-
-
+        if response.status_code == 200 or response.status_code == 302:
+            print(f"{directory}")
+           
+            
 directory_bruteforce(target)
 
 
