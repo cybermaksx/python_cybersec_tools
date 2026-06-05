@@ -1,6 +1,7 @@
 import requests
 import os
 import sys
+import re
 
 target_url = input("What is your target's url?\n")
 if not target_url.startswith(("http://", "https://")): 
@@ -21,6 +22,32 @@ print(f"Target: {target_url}")
 print(f"Port: {target_port}")
 
 target = f"{target_url}:{target_port}"
+
+ext = subprocess.run(f"whatweb {target}"shell = True , capture_output = True , text = True)
+
+ext = result.stdout.lower()
+
+if 'php' in ext:
+    return 'php'
+
+elif 'python' in ext or 'flask' in ext:
+    return 'python' 
+
+elif 'asp' in ext or 'asp.net' in ext:
+    return asp 
+
+
+elif 'ruby' in ext or 'rails' in output:
+    return 'ruby'
+
+
+elif 'node' in ext:
+    return "node.js"
+
+else:
+    return unknown 
+
+
 
 def directory_bruteforce(target):
     try:
