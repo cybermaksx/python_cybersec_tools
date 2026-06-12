@@ -46,7 +46,7 @@ def detect_technology(target):
         return "node.js"
     
     else:
-        return 'unknown
+        return 'unknown'
 
 
 
