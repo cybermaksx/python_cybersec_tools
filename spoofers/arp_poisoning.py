@@ -16,9 +16,19 @@ def get_mac(targetip):
 
 class Arper:
     def __init__(self, victim , gateway , interface= 'wlan0')
-    pass
+    self.victim = victim 
+    self.victim = get_mac(victim)
+    self.gateway = gateway
+    self.gatewaymac = get_mac(gateway)
+    self.interface = interface 
+    conf.iface = interface
+    conf.verb = 0
 
-
+    print(f'Initialized {interface}:')
+    print(f'Gateway ({gateway}) is at {selfgateway.mac}.')
+    print(f'Victim {victim} is at {self.victimmac}.')
+    print('-'*30)
+    
 
 
 def run (self):
