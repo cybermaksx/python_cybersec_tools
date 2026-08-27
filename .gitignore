@@ -1,0 +1,19 @@
+# Packet captures. These contain real traffic from real networks -- mine or a
+# client's. They never belong in a public repo.
+*.pcap
+*.pcapng
+*.cap
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Tool output I keep regenerating
+nmap.txt
+valid_users.txt
+errors.txt

@@ -1,0 +1,213 @@
+================================================================================
+ARP POISONING RUNBOOK  --  arp_poisoning.py
+Lab notes by  cybermaksx
+Only run this against a network you own or are authorized to test.
+================================================================================
+
+Shell is fish. Real values from my home lab are used as examples:
+
+    attacker (me)   192.168.88.137   4c:0f:3e:25:87:80   wlan0
+    gateway         192.168.88.1     74:4d:28:a7:99:ab
+    victim          192.168.88.57    b0:19:21:ee:b6:ce
+
+
+--------------------------------------------------------------------------------
+0. KNOW YOUR NETWORK FIRST
+--------------------------------------------------------------------------------
+Never guess the gateway address. I once passed 192.168.88.242 as the gateway,
+the attack ran perfectly and captured nothing, because .242 was just some other
+client. Confirm the real one:
+
+    ip route show default            # -> "default via 192.168.88.1 dev wlan0"
+    ip -brief addr show wlan0        # my own IP
+    ip neigh show dev wlan0          # known neighbours + their MACs
+
+Find live hosts on the segment if the victim IP is unknown:
+
+    sudo .venv/bin/python -c "from scapy.all import arping; arping('192.168.88.0/24')"
+
+
+--------------------------------------------------------------------------------
+1. ENVIRONMENT
+--------------------------------------------------------------------------------
+External tools this runbook uses (installed 2026-08-27):
+
+    sudo pacman -S tcpdump          # live verification + reading captures
+    sudo pacman -S wireshark-qt     # GUI, also provides tshark
+
+Reading a pcap does not need root. Sniffing live does.
+
+The venv lives in ./.venv  (it used to be named ./scapy -- that name shadowed
+the real scapy package, because the current directory comes first on sys.path
+and a plain directory works as a namespace package. Never name a venv after a
+package you import.)
+
+    source .venv/bin/activate.fish
+    python -c "import scapy.all as s; print(s.conf.version)"     # -> 2.7.0
+
+IMPORTANT: `sudo python3` uses /usr/bin/python3 and does NOT see the venv.
+Always call the venv interpreter by its path when running as root.
+
+
+--------------------------------------------------------------------------------
+2. KERNEL SETTINGS (both required, both root)
+--------------------------------------------------------------------------------
+Enable forwarding, otherwise the victim just loses connectivity and you get a
+denial of service instead of a man in the middle:
+
+    sudo sysctl -w net.ipv4.ip_forward=1
+
+Disable ICMP redirects. When the kernel forwards a packet back out the same
+interface it politely tells the victim "route directly through the gateway,
+I am not needed". That leaks the attack into logs and can break the MITM:
+
+    sudo sysctl -w net.ipv4.conf.all.send_redirects=0
+    sudo sysctl -w net.ipv4.conf.wlan0.send_redirects=0
+
+Check current values:
+
+    sysctl net.ipv4.ip_forward net.ipv4.conf.all.send_redirects
+
+These are NOT persistent across reboot. That is on purpose -- see section 6.
+
+
+--------------------------------------------------------------------------------
+3. RUN THE ATTACK
+--------------------------------------------------------------------------------
+Argument order is VICTIM first, then GATEWAY, then INTERFACE:
+
+    sudo .venv/bin/python arp_poisoning.py 192.168.88.57 192.168.88.1 wlan0
+
+Expected timeline:
+
+    t=0s    banner prints both resolved MACs, poison loop starts
+    t=0s+   one "." every 2 seconds = one poison round trip
+    t=5s    "Sniffing up to 200 packets (max 60s)"
+    t=65s   "Got N packets, wrote arper.pcap"   <-- BE PATIENT, WAIT FOR THIS
+
+I killed two runs at 32s and 42s and wondered why there was no pcap. The
+capture is only written after count is reached or the timeout expires.
+
+The victim must actually generate traffic. An idle phone with the screen off
+produces nothing. Open a website on it while the script runs.
+
+Ctrl-C is safe at any point: restore() runs from a finally block and re-sends
+the correct MACs to both hosts.
+
+
+--------------------------------------------------------------------------------
+4. VERIFY IT IS WORKING (second terminal, while the attack runs)
+--------------------------------------------------------------------------------
+Best single check -- victim's IP traffic arriving at my NIC:
+
+    sudo tcpdump -i wlan0 -n "ether src b0:19:21:ee:b6:ce and ip"
+
+Lines appearing = MITM established.
+Silence while the victim is actively browsing = client isolation on the AP,
+which is a Wi-Fi limitation, not a bug in the script.
+
+On the victim device itself, the gateway IP should now show MY MAC:
+
+    arp -a | grep 192.168.88.1      # expect 4c:0f:3e:25:87:80
+
+
+--------------------------------------------------------------------------------
+5. READ THE CAPTURE
+--------------------------------------------------------------------------------
+Note: arper.pcap is written by root, so it is owned by root.
+
+    sudo chown cybermaksx:cybermaksx arper.pcap
+
+Quick look:
+
+    tcpdump -r arper.pcap -n
+    tcpdump -r arper.pcap -n port 53          # DNS only
+    wireshark arper.pcap
+
+Scapy, useful one-liners:
+
+    .venv/bin/python -c "from scapy.all import *; p=rdpcap('arper.pcap'); p.summary()"
+    .venv/bin/python -c "from scapy.all import *; p=rdpcap('arper.pcap'); p.nsummary()"
+
+Proof of a successful MITM is at layer 2: look for frames whose destination is
+my MAC coming FROM the victim, and separately FROM the gateway. Both directions
+must be present. Traffic only in one direction means only one side is poisoned.
+
+First real finding from this tool (2026-08-27): comparing DNS answers per
+resolver showed 192.168.88.1 returning 195.175.254.2 for wikipedia.org while
+the upstream 192.168.1.1 returned the genuine 185.15.58.224. amazon.com was
+identical from both. That is selective DNS filtering on the local router.
+
+
+--------------------------------------------------------------------------------
+6. CLEAN UP AFTER YOURSELF
+--------------------------------------------------------------------------------
+The script restores the ARP tables automatically. The kernel settings it does
+not -- leaving a box forwarding packets is sloppy:
+
+    sudo sysctl -w net.ipv4.ip_forward=0
+    sudo sysctl -w net.ipv4.conf.all.send_redirects=1
+    sudo sysctl -w net.ipv4.conf.wlan0.send_redirects=1
+
+If a run died hard and left the victim poisoned, either wait for the ARP
+entries to age out, or re-run the script briefly and Ctrl-C it so restore()
+fires cleanly.
+
+
+--------------------------------------------------------------------------------
+7. TROUBLESHOOTING -- every error hit so far
+--------------------------------------------------------------------------------
+PermissionError: [Errno 1] Operation not permitted
+    Raw AF_PACKET sockets need root. Use sudo.
+
+ModuleNotFoundError: No module named 'scapy.all'
+    Either sudo used the system python instead of the venv, or a directory
+    named ./scapy is shadowing the package. Use .venv/bin/python.
+
+TypeError: cannot pickle 'weakref.ReferenceType' object
+    Python 3.14 changed the default multiprocessing start method on Linux from
+    fork to forkserver, which pickles self into the child. Arper holds Process
+    objects, which are not picklable. Fixed in the script with
+    multiprocessing.set_start_method('fork') -- this design needs fork anyway,
+    since sniff() calls self.poison_thread.terminate().
+
+WARNING: You should be providing the Ethernet destination MAC address
+    send() is layer 3 and falls back to a broadcast frame. Use sendp() with an
+    explicit Ether(dst=...) so the is-at reply is unicast to the target.
+    Already fixed in the script.
+
+"Sent 1 packets" printed despite conf.verb = 0
+    Was a forkserver side effect: the child re-imported the module and lost the
+    setting. Gone under fork, and verbose=False is now passed explicitly.
+
+Script runs, MACs resolve, but nothing is captured
+    In order of likelihood: wrong gateway address; killed before the sniff
+    timeout; victim is idle; AP client isolation.
+
+No arper.pcap file
+    Killed before t=65s. Wait for the "Got N packets" line.
+
+
+--------------------------------------------------------------------------------
+8. HOW THE ATTACK ACTUALLY WORKS (so I can explain it in an interview)
+--------------------------------------------------------------------------------
+ARP has no authentication. Any host may send an unsolicited "is-at" reply
+(op=2, a gratuitous ARP) and receivers cache it without asking questions.
+
+Two lies are sent, every 2 seconds, so they stay fresh in both caches:
+
+    to the victim:   "192.168.88.1  (gateway) is at 4c:0f:3e:25:87:80"  (me)
+    to the gateway:  "192.168.88.57 (victim)  is at 4c:0f:3e:25:87:80"  (me)
+
+Both now put my MAC in frames meant for each other, so both directions of the
+conversation land on my NIC. ip_forward makes the kernel pass them along, so
+neither side notices anything. Poisoning only one side gives a half-duplex view
+and usually breaks the connection instead of intercepting it.
+
+restore() undoes it by sending the same is-at replies with the TRUE MACs.
+
+Limits worth remembering: this is layer 2, so it never crosses a router -- the
+attacker must already be on the same broadcast domain. It does not break TLS;
+you see who is talking to whom and plaintext DNS, not the contents of HTTPS.
+Defences are DHCP snooping with Dynamic ARP Inspection on managed switches,
+static ARP entries, and client isolation on Wi-Fi.
