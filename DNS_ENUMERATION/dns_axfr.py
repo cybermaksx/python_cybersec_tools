@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+# Written while working through the HTB Academy DNS enumeration module.
+# Typed out by hand following the module's version, then run against the lab
+# to see what a real AXFR actually returns. The structure is the module's,
+# not mine -- see item 15 in README.md: rewrite this from a blank file.
+
 # Dependencies:
 # python3-dnspython
 
