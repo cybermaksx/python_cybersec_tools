@@ -1,11 +1,7 @@
 import socket
 import struct
 import os
-import asyncio
 import argparse
-
-
-
 
 print("""
 \033[92m
@@ -22,56 +18,36 @@ print("""
 
 #should work with argparse
 
-parser = argparse.ArgumentParser(description="What is your target's ip?")
+parser = argparse.ArgumentParser(description="Let's Hack The Planet")
 parser.add_argument("target", help="your target's ip ")
+parser.add_argument("-p", "--ports" , type = str, default = '80,443,22,23,21,3305',help = "Ports which you would like to scan")
 
 args = parser.parse_args()
 
 target_ip = args.target 
-
-
-
+target_ports = args.ports
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
 my_ip = s.getsockname()[0]
 s.close()
 
-port_range = int(input("\n What type of port scanning you would like to do ?  \n 1) Standart Ports for enumerating Standart services \n 2) I want to check all ports on my target \n 3) Manual range \n 4) Fully manual \n"))
+ports_list = [int(p.strip()) for p in target_ports.split(',')]
 
 
-type_of_scan = int(input("\n What type of scan you want to do : \n 1) TCP SCAN\n  2) SYN Scan  \n Please choose :   "))
-
-if port_range == 1:
-    ports = [21, 22, 80, 443] #I will add all default ports here 
-elif port_range == 2:
-    ports = range(1, 65536)
-elif port_range == 3:
-    range_start = int(input("Start from: "))
-    range_end = int(input("Scan to: "))
-    ports = range(range_start, range_end) #Great way to choose from one way to another 
-elif port_range == 4:
-    print("Enter all ports one by one then type enter")
-    ports = [] #Empty list
-    while (True):
-        n = input("Port or stop: ")
-        if n.lower() == "stop":
-            break
-        else:
-            ports.append(int(n)) #Efficent way to adding ports into empty list
+def tcp_scan (target_ip, ports_list ):
+   for port in ports_list:
+        try: 
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(3)
+            s.connect((target_ip,port))
         
-def tcp_scan (target_ip,target_port ):
-    try: 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        s.connect((target_ip,target_port))
-        
-        print (f"[*] {target_port}  is  open ")
-    except socket.timeout:
-        print(" Target is unreacheable  ")
+            print (f"[*] {port}  is  open ")
+        except socket.timeout:
+            print(" Target is unreacheable  ")
 
-    except ConnectionRefusedError:
-        print (f" {target_port} seems to be closed | filtered")
+        except ConnectionRefusedError:
+            print (f" {port} seems to be closed | filtered")
 
 
 def calculate_checksum(data):
@@ -98,7 +74,7 @@ def calculate_checksum(data):
     return ~s & 0xFFFF
 
 
-def syn_scan(target_ip,target_port):
+def syn_scan(target_ip,ports_list):
     source_port = 1234 # our source port
     #TCP headers fileds
     seq = 0 #In the beggining seq should be 0 
@@ -148,10 +124,17 @@ def syn_scan(target_ip,target_port):
     except Exception as e:
         print(f"Error: {e}")
         
-             
-    
-for port in ports:
-    if type_of_scan == 1:
-        tcp_scan(target_ip, port)
-    elif type_of_scan == 2:
-        syn_scan(target_ip, port)
+def main(target_ip,ports_list):
+    tcp_scan(target_ip, ports_list)
+                 
+
+
+
+
+
+if __name__ == '__main__':
+    main(target_ip, ports_list)
+
+
+
+
