@@ -2,6 +2,10 @@ import socket
 import struct
 import os
 import asyncio
+import argparse
+
+
+
 
 print("""
 \033[92m
@@ -16,8 +20,17 @@ print("""
 """)
 
 
+#should work with argparse
 
-target_ip = input("What is your target's ip adress ? \n")
+parser = argparse.ArgumentParser(description="What is your target's ip?")
+parser.add_argument("target", help="your target's ip ")
+
+args = parser.parse_args()
+
+target_ip = args.target 
+
+
+
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
