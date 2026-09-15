@@ -23,6 +23,7 @@ parser = argparse.ArgumentParser(description="Let's Hack The Planet")
 parser.add_argument("-p", "--ports", type=str, default='80,443,22,23,21,3305',help="Ports which you would like to scan")
 parser.add_argument("-sS", action='store_true', help="SYN Scan")
 parser.add_argument("-sT", action='store_true', help="TCP Scan")
+parser.add_argument("-sU" , action='store_true', help="UDP_SCAN")
 parser.add_argument("target", help="your target's ip")
 args = parser.parse_args()
 target_ip = args.target 
@@ -130,11 +131,25 @@ def syn_scan(target_ip,ports_list):
 
     return open_ports_found 
 
-        
 
-         
 
-        
+def udp_scan(target_ip, ports_list, timeout=3):
+    for port in ports_list:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect((target_ip, port))  
+            sock.send(b'')
+            sock.recv(1024)
+            print(f"[+] Port {port}/udp is OPEN")          
+        except socket.timeout:
+            print(f"[?] Port {port}/udp is OPEN|FILTERED") 
+        except ConnectionRefusedError:
+            print(f"[-] Port {port}/udp is CLOSED")        
+        finally:
+            sock.close() 
+
+
 def main(target_ip,ports_list):
     if args.sT == True:
         tcp_scan(target_ip, ports_list)
@@ -144,7 +159,10 @@ def main(target_ip,ports_list):
         if not open_ports_found:
             print("[*] No open ports have been found!")        
 
-    
+    elif args.sU == True:
+        udp_scan(target_ip , ports_list)
+
+
     elif not args.sS and not args.sT:
         parser.print_help()
         exit() 
